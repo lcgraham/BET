@@ -402,8 +402,8 @@ def scatter_param_multi(samples, img_folder='figs/', showdim='all', save=True,
             xlabel = r'$\lambda_{'+str(showdim+1)+r'}$'
             ylabel = r'$\lambda_{'+str(i+1)+r'}$'
 
-            filenames = [img_folder+'domain_l'+str(showdim+1)+'_q'+str(i+1)+'.eps',
-                    img_folder+'l'+str(showdim+1)+'_q'+str(i+1)+'_domain_L_cs.eps']
+            filenames = [img_folder+'domain_l'+str(showdim+1)+'_l'+str(i+1)+'.eps',
+                    img_folder+'l'+str(showdim+1)+'_l'+str(i+1)+'_domain_L_cs.eps']
             filename = filenames[0]
             plt.scatter(samples[:,0], samples[:,1])
             if save:
@@ -436,3 +436,50 @@ def scatter_param_multi(samples, img_folder='figs/', showdim='all', save=True,
                 plt.show()
             else:
                 plt.close()
+
+def scatter2D_multi(samples, color=None, p_ref=None, img_folder='figs/', filename=None,
+        label_char=r'$\lambda', showdim=None):
+    r"""
+    Plot the scatters of samples in 2D slices of multiple dimensions.
+
+    :param samples: Samples to plot
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim). Only
+        uses the first two dimensions.
+    :param string img_folder: folder to save the plots to
+    :param showdim: default ``all``. If int then flag to show all combinations with a
+        given dimension or if ``all`` show all combinations.
+    :type showdim: int or string
+
+    """
+    if showdim == None:
+        showdim = 0
+
+    if not os.path.isdir(img_folder):
+        os.mkdir(img_folder)
+
+    p_nums = range(samples.shape[1])
+
+    
+    if type(showdim) == int:
+        for i in p_nums:
+            xlabel = label_char+r'_{'+str(showdim+1)+r'}$'
+            ylabel = label_char+r'_{'+str(i+1)+r'}$'
+
+            postfix = '_d'+str(showdim+1)+'_d'+str(i+1)+'.eps'
+            myfilename = os.path.join(img_folder, filename+postfix)
+
+            scatter_2D(samples[:, [showdim, i]], sample_nos=None, color=color,
+                    p_ref=p_ref, save=True, interactive=False, xlabel=xlabel,
+                    ylabel=ylabel, filename=myfilename)
+
+    elif showdim == 'all' or showdim == 'ALL':
+        for x, y in combinations(p_nums, 2):
+            xlabel = label_char+r'_{'+str(x+1)+r'}$'
+            ylabel = label_char+r'_{'+str(y+1)+r'}$'
+
+            postfix = '_d'+str(x+1)+'_d'+str(y+1)+'.eps'
+            myfilename = os.path.join(img_folder, filename+postfix)
+
+            scatter_2D(samples[:, [x, y]], sample_nos=None, color=color,
+                    p_ref=p_ref, save=True, interactive=False, xlabel=xlabel,
+                    ylabel=ylabel, filename=myfilename)
