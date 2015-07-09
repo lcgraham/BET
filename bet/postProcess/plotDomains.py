@@ -469,7 +469,7 @@ def scatter2D_multi(samples, color=None, p_ref=None, img_folder='figs/', filenam
             myfilename = os.path.join(img_folder, filename+postfix)
 
             scatter_2D(samples[:, [showdim, i]], sample_nos=None, color=color,
-                    p_ref=p_ref, save=True, interactive=False, xlabel=xlabel,
+                    p_ref=p_ref[[showdim, i]], save=True, interactive=False, xlabel=xlabel,
                     ylabel=ylabel, filename=myfilename)
 
     elif showdim == 'all' or showdim == 'ALL':
@@ -481,5 +481,5 @@ def scatter2D_multi(samples, color=None, p_ref=None, img_folder='figs/', filenam
             myfilename = os.path.join(img_folder, filename+postfix)
 
             scatter_2D(samples[:, [x, y]], sample_nos=None, color=color,
-                    p_ref=p_ref, save=True, interactive=False, xlabel=xlabel,
+                    p_ref=p_ref[[x, y]], save=True, interactive=False, xlabel=xlabel,
                     ylabel=ylabel, filename=myfilename)
