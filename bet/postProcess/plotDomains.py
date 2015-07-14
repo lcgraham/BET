@@ -54,13 +54,15 @@ def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True, inte
         cmap=None
     else:
         cmap=plt.cm.Oranges
+    markersize=50
     color = color[sample_nos]
-    plt.scatter(samples[sample_nos, 0], samples[sample_nos, 1], c=color, s=10,
+    plt.scatter(samples[sample_nos, 0], samples[sample_nos, 1], c=color,
+            s=markersize,
             alpha=.75, linewidth=.1, cmap=cmap)
     cbar = plt.colorbar()
     cbar.set_label(r'$\rho_\mathcal{D}(q)$')
     if type(p_ref) != type(None):
-        plt.scatter(p_ref[0], p_ref[1], c='g')
+        plt.scatter(p_ref[0], p_ref[1], c='g', s=markersize)
     if save:
         plt.autoscale(tight=True)
         plt.xlabel(xlabel)
