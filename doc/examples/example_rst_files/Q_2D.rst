@@ -15,10 +15,20 @@ This example demostrates three different methods to estimate
 
 These methods are distinguished primarily by the way :math:`\mathcal{V}_j` are
 defined and the approximation of the volume of :math:`\mathcal{V}_j`. See
-:download:`Q_2D_serial.py
-<../../../examples/fromFile_ADCIRCMap/Q_2D_serial.py>` for the example source code. Since
+`Q_2D_serial.py
+<https://github.com/UT-CHG/BET/blob/master/examples/fromFile_ADCIRCMap/Q_2D_serial.py>`_ for the example source code. Since
 this example is essentially the same as :ref:`q1D` we will only highlight the
 differences between the two.
+
+
+.. note::
+
+    * In line 36 reduce number of emulated points to 1e4 so that it will run
+        quickly.
+    * reduce number of ``ref_nums`` to a single number so that we only
+        examine a single set of QoI
+    * add plotting of marginals using
+        :mod:`bet.postProcess.plotP.plot_2D_marginal_probs`
 
 Define the filename to save :math:`\hat{\rho}_{\Lambda, j}` to::
 
