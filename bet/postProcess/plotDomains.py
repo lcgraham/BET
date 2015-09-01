@@ -27,14 +27,9 @@ for m in Line2D.markers:
 
 colors = ('b', 'g', 'r', 'c', 'm', 'y', 'k')
 
-<<<<<<< HEAD
-def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True, interactive=False,
-        xlabel='x', ylabel='y', filename='scatter2d'):
-=======
 def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
                interactive=False, xlabel='x', ylabel='y',
                filename='scatter2d'): 
->>>>>>> master
     """
     Creates a two-dimensional scatter plot of ``samples`` colored by ``color``
     (usually an array of pointwise probability density values). A reference
@@ -59,19 +54,6 @@ def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
     # plot all of the samples by default
     if type(sample_nos) == type(None):
         sample_nos = np.arange(samples.shape[0])
-<<<<<<< HEAD
-    if color is None:
-        color = np.ones((samples.shape[0],))
-        cmap=None
-    else:
-        cmap=plt.cm.PuBu
-        #cmap=plt.cm.Oranges
-    markersize=75
-    color = color[sample_nos]
-    plt.scatter(samples[sample_nos, 0], samples[sample_nos, 1], c=color,
-            s=markersize,
-            alpha=.75, linewidth=.1, cmap=cmap)
-=======
     # color all of the samples uniformly by default and set the default
     # to the default colormap of matplotlib
     if color is None:
@@ -88,7 +70,6 @@ def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
     # add a colorbar and label for the colorbar usually we just assume the
     # samples are colored by the pointwise probability density on the data
     # space
->>>>>>> master
     cbar = plt.colorbar()
     cbar.set_label(r'$\rho_\mathcal{D}(q)$')
     # if there is a reference value plot it with a notiable marker
