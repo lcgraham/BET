@@ -42,7 +42,7 @@ def sort_by_rho(P_samples, samples, lam_vol=None, data=None):
             data = np.expand_dims(data, axis=1)
         data = data[indices, :]
 
-    return (P_samples, samples, lam_vol, data)
+    return (P_samples, samples, lam_vol, data, indices)
 
 def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
         data=None, sort=True): 
@@ -71,7 +71,7 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
     if len(samples.shape) == 1:
         samples = np.expand_dims(samples, axis=1)
     if sort:
-        (P_samples, samples, lam_vol, data) = sort_by_rho(P_samples, samples,
+        (P_samples, samples, lam_vol, data, indices) = sort_by_rho(P_samples, samples,
                 lam_vol, data)
 
     P_sum = np.cumsum(P_samples)
@@ -85,7 +85,8 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
             data = np.expand_dims(data, axis=1)
         data = data[0:num_samples, :]
         
-    return  (num_samples, P_samples, samples, lam_vol, data)
+    return  (num_samples, P_samples, samples, lam_vol, data,
+            indices[0:num_samples])
     
 def save_parallel_probs_csv(P_samples, samples, P_file, lam_file,
         compress=False):
