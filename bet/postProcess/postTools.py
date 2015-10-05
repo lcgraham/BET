@@ -37,7 +37,7 @@ def sort_by_rho(P_samples, samples, lam_vol=None, data=None):
     samples = samples[indices, :]
     if type(lam_vol) != type(None):
         lam_vol = lam_vol[indices]
-    if type(data) != (None):
+    if data is not None:
         if len(data.shape) == 1:
             data = np.expand_dims(data, axis=1)
         data = data[indices, :]
