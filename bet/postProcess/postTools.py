@@ -28,6 +28,8 @@ def sort_by_rho(P_samples, samples, lam_vol=None, data=None):
     """
     if len(samples.shape) == 1:
         samples = np.expand_dims(samples, axis=1)
+    if P_samples.shape != (samples.shape[0],):
+        raise ValueError("P_samples must be of the shape (num_samples,)")
     nnz = np.sum(P_samples > 0)
     if type(lam_vol) == type(None):
         indices = np.argsort(P_samples)[::-1][0:nnz]
@@ -70,9 +72,11 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
     """
     if len(samples.shape) == 1:
         samples = np.expand_dims(samples, axis=1)
+    if P_samples.shape != (samples.shape[0],):
+        raise ValueError("P_samples must be of the shape (num_samples,)")
     if sort:
-        (P_samples, samples, lam_vol, data, indices) = sort_by_rho(P_samples, samples,
-                lam_vol, data)
+        (P_samples, samples, lam_vol, data, indices) = sort_by_rho(P_samples,
+                samples, lam_vol, data)
 
     P_sum = np.cumsum(P_samples)
     num_samples = np.sum(P_sum <= top_percentile)
