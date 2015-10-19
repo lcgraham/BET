@@ -22,8 +22,10 @@ def sort_by_rho(P_samples, samples, lam_vol=None, data=None):
     :type lam_vol: :class:`~numpy.ndarray` of shape (num_samples,)
     :param data: QoI data from running the model with the given samples.
     :type data: :class:`~numpy.ndarray` of shape (num_samples, mdim)
+    :param indices: sorting indices of unsorted ``P_samples``
+    :type indices: :class:`numpy.ndarray` of shape (num_samples,)
     :rtype: tuple
-    :returns: (P_samples, samples, lam_vol, data)
+    :returns: (P_samples, samples, lam_vol, data, indicices)
 
     """
     if len(samples.shape) == 1:
@@ -46,18 +48,18 @@ def sort_by_rho(P_samples, samples, lam_vol=None, data=None):
 
     return (P_samples, samples, lam_vol, data, indices)
 
-def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
-        data=None, sort=True): 
+def sample_prob(percentile, P_samples, samples, lam_vol=None,
+        data=None, sort=True, descending=False): 
     """
-    This calculates the highest probability samples whose probability sum to a
-    given value.  The number of high probability samples that sum to the value
+    This calculates the highest/lowest probability samples whose probability sum to a
+    given value.  The number of high/low probability samples that sum to the value
     and the probabilities, samples, volumes, and data are returned. This
-    assumes that ``P_samples``,
-    ``samples``, ``lam_vol``, and ``data`` have all be sorted using
-    :meth:`~bet.postProcess.sort_by_rho`.
+    assumes that ``P_samples``, ``samples``, ``lam_vol``, and ``data`` have all
+    be sorted using :meth:`~bet.postProcess.sort_by_rho`. The ``descending``
+    flag determines whether or not to calcuate the highest/lowest.
 
-    :param top_percentile: ratio of highest probability samples to select
-    :type top_percentile: float
+    :param percentile: ratio of highest probability samples to select
+    :type percentile: float
     :param P_samples: Probabilities.
     :type P_samples: :class:`~numpy.ndarray` of shape (num_samples,)
     :param samples: The samples in parameter space for which the model was run.
@@ -66,6 +68,10 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
     :type lam_vol: :class:`~numpy.ndarray` of shape (num_samples,)
     :param data: QoI data from running the model with the given samples.
     :type data: :class:`~numpy.ndarray` of shape (num_samples, mdim)
+    :type indices: :class:`numpy.ndarray` of shape (num_samples,)
+    :param indices: sorting indices of unsorted ``P_samples``
+    :param bool sort: Flag whether or not to sort
+    :param bool descending: Flag order of sorting
     :rtype: tuple
     :returns: ( num_samples, P_samples, samples, lam_vol, data)
 
@@ -77,9 +83,16 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
     if sort:
         (P_samples, samples, lam_vol, data, indices) = sort_by_rho(P_samples,
                 samples, lam_vol, data)
+    if descending:
+        P_samples = P_samples[::-1]
+        samples = samples[::-1]
+        if lam_vol is not None:
+            lam_vol = lam_vol[::-1]
+        data = data[::-1]
+        indices = indices[::-1]
 
     P_sum = np.cumsum(P_samples)
-    num_samples = np.sum(P_sum <= top_percentile)
+    num_samples = np.sum(P_sum <= percentile)
     P_samples = P_samples[0:num_samples]
     samples = samples[0:num_samples, :]
     if type(lam_vol) != type(None):
@@ -91,7 +104,65 @@ def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
         
     return  (num_samples, P_samples, samples, lam_vol, data,
             indices[0:num_samples])
-    
+
+def sample_highest_prob(top_percentile, P_samples, samples, lam_vol=None,
+        data=None, sort=True): 
+    """
+    This calculates the highest probability samples whose probability sum to a
+    given value.  The number of high probability samples that sum to the value
+    and the probabilities, samples, volumes, and data are returned. This
+    assumes that ``P_samples``, ``samples``, ``lam_vol``, and ``data`` have all
+    be sorted using :meth:`~bet.postProcess.sort_by_rho`.
+
+    :param top_percentile: ratio of highest probability samples to select
+    :type top_percentile: float
+    :param P_samples: Probabilities.
+    :type P_samples: :class:`~numpy.ndarray` of shape (num_samples,)
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param lam_vol: Volume of cell associated with sample.
+    :type lam_vol: :class:`~numpy.ndarray` of shape (num_samples,)
+    :param data: QoI data from running the model with the given samples.
+    :type data: :class:`~numpy.ndarray` of shape (num_samples, mdim)
+    :type indices: :class:`numpy.ndarray` of shape (num_samples,)
+    :param indices: sorting indices of unsorted ``P_samples``
+    :param bool sort: Flag whether or not to sort
+    :rtype: tuple
+    :returns: ( num_samples, P_samples, samples, lam_vol, data)
+
+    """
+    return sample_prob(top_percentile, P_samples, samples, lam_vol, data, sort)
+
+def sample_lowest_prob(bottom_percentile, P_samples, samples, lam_vol=None,
+        data=None, sort=True): 
+    """
+    This calculates the lowest probability samples whose probability sum to a
+    given value.  The number of low probability samples that sum to the value
+    and the probabilities, samples, volumes, and data are returned. This
+    assumes that ``P_samples``, ``samples``, ``lam_vol``, and ``data`` have all
+    be sorted using :meth:`~bet.postProcess.sort_by_rho`.
+
+    :param top_percentile: ratio of highest probability samples to select
+    :type top_percentile: float
+    :param P_samples: Probabilities.
+    :type P_samples: :class:`~numpy.ndarray` of shape (num_samples,)
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param lam_vol: Volume of cell associated with sample.
+    :type lam_vol: :class:`~numpy.ndarray` of shape (num_samples,)
+    :param data: QoI data from running the model with the given samples.
+    :type data: :class:`~numpy.ndarray` of shape (num_samples, mdim)
+    :type indices: :class:`numpy.ndarray` of shape (num_samples,)
+    :param indices: sorting indices of unsorted ``P_samples``
+    :param bool sort: Flag whether or not to sort
+    :rtype: tuple
+    :returns: ( num_samples, P_samples, samples, lam_vol, data)
+
+    """
+    return sample_prob(bottom_percentile, P_samples, samples, lam_vol, data,
+            sort, descending=True)
+
+>>>>>>> is124
 def save_parallel_probs_csv(P_samples, samples, P_file, lam_file,
         compress=False):
     """
