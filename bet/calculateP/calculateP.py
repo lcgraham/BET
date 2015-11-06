@@ -170,7 +170,8 @@ def prob_mc(samples, data, rho_D_M, d_distr_samples,
         parition of D to for the simple function approximation
     :type d_distr_samples: :class:`~numpy.ndarray` of shape  (M, mdim) 
     :param d_Tree: :class:`~scipy.spatial.KDTree` for d_distr_samples
-    :param lambda_emulate: Samples used to partition the parameter space
+    :param lambda_emulate: Samples used to estimate the volumes of the Voronoi
+        cells associated with ``samples``
 
     :rtype: tuple of :class:`~numpy.ndarray` of sizes (num_samples,),
         (num_samples,), (ndim, num_l_emulate), (num_samples,), (num_l_emulate,)
