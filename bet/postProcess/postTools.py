@@ -167,7 +167,6 @@ def sample_lowest_prob(bottom_percentile, P_samples, samples, lam_vol=None,
     return sample_prob(bottom_percentile, P_samples, samples, lam_vol, data,
             sort, descending=True)
 
->>>>>>> is124
 def save_parallel_probs_csv(P_samples, samples, P_file, lam_file,
         compress=False):
     """
