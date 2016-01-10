@@ -218,4 +218,3 @@ def boundary_hypersphere_ratio(center, radius, boundary_ratio):
     """
     return boundary_hypersphere(center, radius, radius*boundary_ratio)
 
->>>>>>> is124

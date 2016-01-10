@@ -29,7 +29,7 @@ colors = ('b', 'g', 'r', 'c', 'm', 'y', 'k')
 
 def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
                interactive=False, xlabel='x', ylabel='y',
-               filename='scatter2d'): 
+               filename='scatter2d', markersize=75, alpha=.75): 
     """
     Creates a two-dimensional scatter plot of ``samples`` colored by ``color``
     (usually an array of pointwise probability density values). A reference
@@ -61,12 +61,11 @@ def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
         cmap = None
     else:
         cmap = plt.cm.PuBu
-    markersize = 75
     color = color[sample_nos]
     # create the scatter plot for the samples specified by sample_nos
     plt.scatter(samples[sample_nos, 0], samples[sample_nos, 1], c=color,
             s=markersize,
-            alpha=.75, linewidth=.1, cmap=cmap)
+            alpha=alpha, linewidth=.1, cmap=cmap)
     # add a colorbar and label for the colorbar usually we just assume the
     # samples are colored by the pointwise probability density on the data
     # space
