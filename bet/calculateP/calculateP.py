@@ -14,16 +14,19 @@ import numpy as np
 import scipy.spatial as spatial
 import bet.util as util
 
-def emulate_iid_normal(lam_domain, num_l_emulate, mean, std):
+def emulate_iid_normal(num_l_emulate, mean, covariance):
     """
-    Parition the parameter space using emulated samples into many voronoi
-    cells. These samples are iid so that we can apply the standard MC                                       
-    assumuption/approximation
+    Sample the parameter space using emulated samples drawn from a multivariate
+    normal distribution. These samples are iid so that we can apply the
+    standard MC assumuption/approximation. See
+    :meth:`numpy.random.multivariate_normal`.
 
-    :param lam_domain: The domain for each parameter for the model.
-    :type lam_domain: :class:`~numpy.ndarray` of shape (ndim, 2)  
     :param num_l_emulate: The number of emulated samples.
     :type num_l_emulate: int
+    :param mean: The mean of the n-dimensional distribution.
+    :type mean: :class:`numpy.ndarray` of shape (ndim, )
+    :param covariance: The covariance of the n-dimensional distribution.
+    :type covariance: 2-D :class:`numpy.ndarray` of shape (ndim, ndim)
 
     :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
     :returns: a set of samples for emulation
@@ -31,16 +34,18 @@ def emulate_iid_normal(lam_domain, num_l_emulate, mean, std):
     """
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
-    lam_width = lam_domain[:, 1] - lam_domain[:, 0]
-    lambda_emulate = lam_width*np.random.normal(mean, std, (num_l_emulate,
-        lam_domain.shape[0]))+lam_domain[:, 0] 
+    mean = util.fix_dimensions_vector(mean)
+    if not isinstance(covarance, np.ndarray):
+        covariance = np.ndarray([[covariance]])
+    lambda_emulate = np.random.multivariate_normal(mean, covariance,
+            num_l_emulate)
     return lambda_emulate 
 
 def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     """
-    Parition the parameter space using emulated samples into many voronoi
-    cells. These samples are iid so that we can apply the standard MC                                       
-    assumuption/approximation
+    Sample the parameter space using emulated samples drawn from a uniform
+    Lesbegue measure. These samples are iid so that we can apply the standard
+    MC assumuption/approximation. See :meth:`numpy.random.random`.
 
     :param lam_domain: The domain for each parameter for the model.
     :type lam_domain: :class:`~numpy.ndarray` of shape (ndim, 2)  
