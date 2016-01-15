@@ -35,7 +35,7 @@ def emulate_iid_normal(num_l_emulate, mean, covariance):
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
     mean = util.fix_dimensions_vector(mean)
-    if not isinstance(covarance, np.ndarray):
+    if not isinstance(covariance, np.ndarray):
         covariance = np.ndarray([[covariance]])
     lambda_emulate = np.random.multivariate_normal(mean, covariance,
             num_l_emulate)
