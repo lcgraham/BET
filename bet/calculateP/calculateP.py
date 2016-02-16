@@ -61,6 +61,30 @@ def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     lam_width = lam_domain[:, 1] - lam_domain[:, 0]
     lambda_emulate = lam_width*np.random.random((num_l_emulate,
         lam_domain.shape[0]))+lam_domain[:, 0] 
+    return lambda_emulate
+
+def emulate_iid_beta(a, b, lam_domain, num_l_emulate):
+    """
+    Sample the parameter space using emulated samples drawn from a beta
+    distribution. These samples are iid so that we can apply the standard
+    MC assumuption/approximation. See :meth:`numpy.random.beta`.
+
+    :param a float: alpha
+    :param b float: beta
+    :param lam_domain: The domain for each parameter for the model.
+    :type lam_domain: :class:`~numpy.ndarray` of shape (ndim, 2)  
+    :param num_l_emulate: The number of emulated samples.
+    :type num_l_emulate: int
+
+    :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :returns: a set of samples for emulation
+
+    """
+    num_l_emulate = (num_l_emulate/comm.size) + \
+            (comm.rank < num_l_emulate%comm.size)
+    lam_width = lam_domain[:, 1] - lam_domain[:, 0]
+    lambda_emulate = lam_width*np.random.beta(a, b, (num_l_emulate,
+        lam_domain.shape[0]))+lam_domain[:, 0] 
     return lambda_emulate 
 
 def prob_emulated(samples, data, rho_D_M, d_distr_samples,
