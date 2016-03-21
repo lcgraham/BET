@@ -79,7 +79,7 @@ def scatter_2D(samples, sample_nos=None, color=None, p_ref=None, save=True,
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.savefig(filename, bbox_inches='tight', transparent=True,
-                pad_inches=0)
+                pad_inches=.2)
     if interactive:
         plt.show()
     else:
@@ -145,7 +145,7 @@ def scatter_3D(samples, sample_nos=None, color=None, p_ref=None, save=True,
     ax.set_zlabel(zlabel)
     if save:
         plt.savefig(filename, bbox_inches='tight', transparent=True,
-                pad_inches=0)
+                pad_inches=.2)
     if interactive:
         plt.show()
     else:
@@ -501,7 +501,7 @@ def scatter_param_multi(samples, img_folder='figs/', showdim='all', save=True,
                 plt.xlabel(xlabel)
                 plt.ylabel(ylabel)
                 plt.savefig(filename, bbox_inches='tight', transparent=True,
-                        pad_inches=0)
+                        pad_inches=.2)
             if interactive:
                 plt.show()
             else:
@@ -522,7 +522,7 @@ def scatter_param_multi(samples, img_folder='figs/', showdim='all', save=True,
                 plt.xlabel(xlabel)
                 plt.ylabel(ylabel)
                 plt.savefig(filename, bbox_inches='tight', transparent=True,
-                        pad_inches=0)
+                        pad_inches=.2)
             if interactive:
                 plt.show()
             else:
