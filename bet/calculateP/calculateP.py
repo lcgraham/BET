@@ -13,6 +13,45 @@ from bet.Comm import comm, MPI
 import numpy as np
 import scipy.spatial as spatial
 import bet.util as util
+import scipy.stats
+
+def emulate_iid_truncnorm(lam_domain, num_l_emulate, mean, covariance):
+    """
+    Sample the parameter space using emulated samples drawn from a multivariate
+    truncated normal distribution. These samples are iid so that we can apply the
+    standard MC assumuption/approximation. See
+    :meth:`scipy.stats.truncnorm`.
+
+    :param lam_domain: The domain for each parameter for the model.
+    :type lam_domain: :class:`~numpy.ndarray` of shape (ndim, 2)  
+    :param num_l_emulate: The number of emulated samples.
+    :type num_l_emulate: int
+    :param mean: The mean of the n-dimensional distribution.
+    :type mean: :class:`numpy.ndarray` of shape (ndim, )
+    :param covariance: The covariance of the n-dimensional distribution.
+    :type covariance: 2-D :class:`numpy.ndarray` of shape (ndim, ndim)
+
+    :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :returns: a set of samples for emulation
+
+    """
+    num_l_emulate = (num_l_emulate/comm.size) + \
+            (comm.rank < num_l_emulate%comm.size)
+    mean = util.fix_dimensions_vector(mean)
+    if not isinstance(covariance, np.ndarray):
+        covariance = np.array([[covariance]])i
+    # TODO do a tensor product
+    lambda_emulate = np.zeros((num_l_emulate, lam_domain.shape[0]))
+    for i in xrange(lam_domain.shape[0]):
+        lambda_emulate[:, i] = scipy.stats.truncnorm.rvs(a=float(lam_domain[:, 0]),
+            b=float(lam_domain[:, 1]), loc=float(mean),
+            scale=float(covariance**.5)), size=num_l_emulate) 
+    # TODO do a tensor product here with the things?
+    #lambda_emulate = np.random.multivariate_truncnormal(mean, covariance,
+    #        num_l_emulate)
+    return lambda_emulate 
+
+
 
 def emulate_iid_normal(num_l_emulate, mean, covariance):
     """
