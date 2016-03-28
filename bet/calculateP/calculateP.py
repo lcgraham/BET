@@ -69,8 +69,9 @@ def emulate_iid_truncnorm(num_l_emulate, mean, covariance, input_domain):
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
     lambda_emulate = scipy.stats.truncnorm.rvs(np.float(input_domain[:, 0]),
-            np.float(input_domain[:, 1]), loc=mean, scale=np.sqrt(covariance))
-    return lambda_emulate
+            np.float(input_domain[:, 1]), loc=mean, scale=np.sqrt(covariance),
+            size=num_l_emulate)
+    return np.expand_dims(lambda_emulate, 1)
 
 def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     """
