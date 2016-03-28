@@ -9,10 +9,11 @@ This module provides methods for calulating the probability measure
 * :mod:`~bet.calculateP.calculateP.prob_samples_mc` estimates the volumes of
     the voronoi cells using MC integration
 """
-from bet.Comm import comm, MPI 
+import scipy.stats
 import numpy as np
 import scipy.spatial as spatial
 import bet.util as util
+from bet.Comm import comm, MPI 
 
 def emulate_iid_normal(num_l_emulate, mean, covariance):
     """
@@ -40,6 +41,36 @@ def emulate_iid_normal(num_l_emulate, mean, covariance):
     lambda_emulate = np.random.multivariate_normal(mean, covariance,
             num_l_emulate)
     return lambda_emulate 
+
+def emulate_iid_truncnorm(num_l_emulate, mean, covariance, input_domain):
+    """
+    Sample the parameter space using emulated samples drawn from a 
+    truncated normal distribution. These samples are iid so that we can apply
+    the
+    standard MC assumuption/approximation. See
+    :meth:`scipy.stats.truncnorm`.
+
+    :param num_l_emulate: The number of emulated samples.
+    :type num_l_emulate: int
+    :param mean: The mean of the n-dimensional distribution.
+    :type mean: :class:`numpy.ndarray` of shape (ndim, )
+    :param covariance: The covariance of the n-dimensional distribution.
+    :type covariance: 2-D :class:`numpy.ndarray` of shape (ndim, ndim)
+    :param input_domain: The domain for each parameter of the model.
+    :type input_domain: :class:`~numpy.ndarray` of shape (dim, 2). Note that
+        ``dim==1``.
+
+    :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :returns: a set of samples for emulation
+
+    
+    """
+    # TODO update using tensor product to create a multivarite normal
+    num_l_emulate = (num_l_emulate/comm.size) + \
+            (comm.rank < num_l_emulate%comm.size)
+    lambda_emulate = scipy.stats.truncnorm.rvs(np.float(input_domain[:, 0]),
+            np.float(input_domain[:, 1]), loc=mean, scale=np.sqrt(covariance))
+    return lambda_emulate
 
 def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     """
@@ -69,6 +100,11 @@ def emulate_iid_beta(a, b, lam_domain, num_l_emulate):
     distribution. These samples are iid so that we can apply the standard
     MC assumuption/approximation. See :meth:`numpy.random.beta`.
 
+    .. note::
+        
+        See :class:`scipy.stats.dirichlet` for the multivariate extension of
+        the Beta function. This has not yet need implemented.
+
     :param a float: alpha
     :param b float: beta
     :param lam_domain: The domain for each parameter for the model.
@@ -80,6 +116,7 @@ def emulate_iid_beta(a, b, lam_domain, num_l_emulate):
     :returns: a set of samples for emulation
 
     """
+    # TODO implement multivariate version
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
     lam_width = lam_domain[:, 1] - lam_domain[:, 0]
