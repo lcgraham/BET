@@ -66,10 +66,11 @@ def emulate_iid_truncnorm(num_l_emulate, mean, covariance, input_domain):
     
     """
     # TODO update using tensor product to create a multivarite normal
+    a = (input_domain[:, 0] - mean) / np.sqrt(covariance)
+    b = (input_domain[:, 1] - mean) / np.sqrt(covariance)
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
-    lambda_emulate = scipy.stats.truncnorm.rvs(np.float(input_domain[:, 0]),
-            np.float(input_domain[:, 1]), loc=mean, scale=np.sqrt(covariance),
+    lambda_emulate = scipy.stats.truncnorm.rvs(a, b, loc=mean, scale=np.sqrt(covariance),
             size=num_l_emulate)
     return np.expand_dims(lambda_emulate, 1)
 
