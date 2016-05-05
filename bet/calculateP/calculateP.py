@@ -74,6 +74,11 @@ def emulate_iid_truncnorm(num_l_emulate, mean, covariance, input_domain):
             size=num_l_emulate)
     return np.expand_dims(lambda_emulate, 1)
 
+class dim_not_matching(Exception):
+    """
+    Exception for when the dimension is inconsistent.
+    """
+
 def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     """
     Sample the parameter space using emulated samples drawn from a uniform
@@ -216,7 +221,9 @@ def prob(samples, data, rho_D_M, d_distr_samples, d_Tree=None):
         d_Tree = spatial.KDTree(d_distr_samples)
 
     # Set up local arrays for parallelism
-    local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    #local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
     samples_local = samples[local_index, :]
     data_local = data[local_index, :]
     local_array = np.array(local_index, dtype='int64')
@@ -339,7 +346,7 @@ def estimate_volume(samples, lambda_emulate=None):
         samples = np.expand_dims(samples, axis=1) 
     if lambda_emulate is None:
         lambda_emulate = samples
- 
+
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
     (_, emulate_ptr) = l_Tree.query(lambda_emulate)
@@ -358,12 +365,57 @@ def estimate_volume(samples, lambda_emulate=None):
     lam_vol = lam_vol/(num_emulated)
 
     # Set up local arrays for parallelism
-    local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    #local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
     lam_vol_local = lam_vol[local_index]
 
     return (lam_vol, lam_vol_local, local_index)
 
+def volumes_eaxct_1D(samples, input_domain):
+    r"""
 
+    Exactly calculates the volume fraction of the Voronoice cells associated
+    with ``samples``. Specifically we are calculating 
+    :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`.
+    
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param input_domain: The lmits of the domain :math:`\mathcal{D}`.
+    :type input_domain: :class:`numpy.ndarray` of shape (ndim, 2)
+
+    :rtype: tuple
+    :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
+        global array of volume fractions, ``lam_vol_local`` is the local array
+        of volume fractions, and ``local_index`` a list of the global indices
+        for local arrays on this particular processor ``lam_vol_local =
+        lam_vol[local_index]``
+    
+    """
+
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1)
+
+    #if sample_obj.get_dim() != 1:
+    if samples.shape[1] != 1:
+        raise dim_not_matching("Only applicable for 1D domains.")
+
+    # sort the samples
+    sort_ind = np.squeeze(np.argsort(samples, 1))
+    sorted_samples = samples[sort_ind]
+
+    # determine the mid_points which are the edges of the associated voronoi
+    # cells and bound the cells by the domain
+    edges = np.concatenate(([input_domain[:, 0]], (sorted_samples[:-1, :] +\
+        sorted_samples[1:, :])*.5, [input_domain[:, 1]]))
+    lam_vol = np.squeeze(edges[1:, :] - edges[:-1, :])
+
+    # Set up local arrays for parallelism
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    lam_vol_local = lam_vol[local_index]
+
+    return (lam_vol, lam_vol_local, local_index)
     
 
     
