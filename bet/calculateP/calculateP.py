@@ -401,7 +401,7 @@ def exact_volume_1D(samples, input_domain):
         raise dim_not_matching("Only applicable for 1D domains.")
 
     # sort the samples
-    sort_ind = np.squeeze(np.argsort(samples, 1))
+    sort_ind = np.squeeze(np.argsort(samples, 0))
     sorted_samples = samples[sort_ind]
 
     # determine the mid_points which are the edges of the associated voronoi
