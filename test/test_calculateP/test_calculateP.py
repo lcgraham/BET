@@ -146,7 +146,7 @@ class TestExactVolume1D(unittest.TestCase):
         """
         nptest.assert_array_equal(self.lam_vol.shape, (len(self.samples), ))
         nptest.assert_array_equal(self.lam_vol_local.shape,
-                (len(self.samples)/comm.size, ))
+                (len(np.array_split(self.samples, comm.size)[comm.rank]),))
         nptest.assert_array_equal(self.lam_vol_local.shape,
                 len(self.local_index))
 
@@ -156,6 +156,7 @@ class TestExactVolume1D(unittest.TestCase):
         samples.
         """
         nptest.assert_array_almost_equal(self.lam_vol, self.volume_exact)
+        print self.local_index
         nptest.assert_array_almost_equal(self.lam_vol_local,
                 self.lam_vol[self.local_index])
 
