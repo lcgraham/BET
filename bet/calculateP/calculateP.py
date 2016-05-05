@@ -372,7 +372,7 @@ def estimate_volume(samples, lambda_emulate=None):
 
     return (lam_vol, lam_vol_local, local_index)
 
-def volumes_eaxct_1D(samples, input_domain):
+def exact_volume_1D(samples, input_domain):
     r"""
 
     Exactly calculates the volume fraction of the Voronoice cells associated
@@ -381,7 +381,7 @@ def volumes_eaxct_1D(samples, input_domain):
     
     :param samples: The samples in parameter space for which the model was run.
     :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
-    :param input_domain: The lmits of the domain :math:`\mathcal{D}`.
+    :param input_domain: The limits of the domain :math:`\mathcal{D}`.
     :type input_domain: :class:`numpy.ndarray` of shape (ndim, 2)
 
     :rtype: tuple
