@@ -425,7 +425,7 @@ def exact_volume_1D(samples, input_domain, distribution='uniform', a=None,
                 loc=input_domain[:, 0], scale=domain_width)
     # calculate difference between right and left of each cell and renormalize
     lam_vol = np.squeeze(edges[1:, :] - edges[:-1, :])
-    if distribution == 'uniform'
+    if distribution == 'uniform':
         lam_vol = lam_vol/domain_width
     # Set up local arrays for parallelism
     local_index = np.array_split(np.arange(samples.shape[0]),
