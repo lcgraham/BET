@@ -432,6 +432,7 @@ def exact_volume_1D(samples, input_domain, distribution='uniform', a=None,
     # Set up local arrays for parallelism
     local_index = np.array_split(np.arange(samples.shape[0]),
             comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
     lam_vol_local = lam_vol[local_index]
 
     return (lam_vol, lam_vol_local, local_index)
