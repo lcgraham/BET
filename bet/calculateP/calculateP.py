@@ -221,7 +221,6 @@ def prob(samples, data, rho_D_M, d_distr_samples, d_Tree=None):
         d_Tree = spatial.KDTree(d_distr_samples)
 
     # Set up local arrays for parallelism
-    #local_index = range(0+comm.rank, samples.shape[0], comm.size)
     local_index = np.array_split(np.arange(samples.shape[0]),
             comm.size)[comm.rank]
     samples_local = samples[local_index, :]
@@ -366,18 +365,25 @@ def estimate_volume(samples, lambda_emulate=None, p=2):
     lam_vol = lam_vol/(num_emulated)
 
     # Set up local arrays for parallelism
-    local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
     lam_vol_local = lam_vol[local_index]
 
     return (lam_vol, lam_vol_local, local_index)
 
-def estimate_local_volume(samples, input_domain, num_l_emulate, p=2, distribution='uniform',
+def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=1e2,
+        p=2, max_num_l_emulate=1e3, distribution='uniform',
         a=None, b=None):
     r"""
 
     Exactly calculates the volume fraction of the Voronoice cells associated
     with ``samples``. Specifically we are calculating 
     :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`.
+
+    Volume of the L-p ball is obtained from  Wang, X.. (2005). Volumes of
+    Generalized Unit Balls. Mathematics Magazine, 78(5), 390–395.
+    `DOI 10.2307/30044198 <http://doi.org/10.2307/30044198>`_
 
     .. todo::
         
@@ -402,42 +408,71 @@ def estimate_local_volume(samples, input_domain, num_l_emulate, p=2, distributio
         lam_vol[local_index]``
     
     """
+    # TODO this might work better if we first normalize the domain
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1) 
+
+    # Determine which emulated samples match with which model run samples
+    l_Tree = spatial.KDTree(samples)
+
+    # for each sample
+    # determine the appropriate radius of the Lp ball (this should be the
+    # distance to the farthest neighboring Voronoi cell)
+
+    # calculating this exactly is hard so we will estimate it as follows
+    # TODO it is unclear whether to use min, mean, or the first n nearest
+    # samples
     # Calculate the pairwise distances
     pairwise_distance = spatial.distance.pdist(samples, p=p)
     pairwise_distance = spatial.distance.squareform(pairwise_distance)
     pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
-    # Calculate mean, std of minimum pairwise distances
-    mean_pw_dist = np.
+    # Calculate mean, std of pairwise distances
+    sample_radii = np.std(pairwise_distance_ma, 0)*3
+
+    # determine the volume of the Lp ball
+    dim = samples.shape[1]
+    sample_Lp_ball_vol = sample_radii**dim * scipy.special.gamma(1+1./p) / \
+            scipy.special.gamma(1+float(dim)/p)
 
 
-    if len(samples.shape) == 1:
-        samples = np.expand_dims(samples, axis=1) 
-    if lambda_emulate is None:
-        lambda_emulate = samples
-
-    # Determine which emulated samples match with which model run samples
-    l_Tree = spatial.KDTree(samples)
-    (_, emulate_ptr) = l_Tree.query(lambda_emulate)
-
-    # Apply the standard MC approximation to determine the number of emulated
-    # samples per model run sample. This is for approximating 
-    # \mu_Lambda(A_i \intersect b_j)
     lam_vol = np.zeros((samples.shape[0],)) 
-    for i in range(samples.shape[0]):
-        lam_vol[i] = np.sum(np.equal(emulate_ptr, i))
-    clam_vol = np.copy(lam_vol) 
-    comm.Allreduce([lam_vol, MPI.DOUBLE], [clam_vol, MPI.DOUBLE], op=MPI.SUM)
-    lam_vol = clam_vol
-    num_emulated = lambda_emulate.shape[0]
-    num_emulated = comm.allreduce(num_emulated, op=MPI.SUM)
-    lam_vol = lam_vol/(num_emulated)
 
     # Set up local arrays for parallelism
-    #local_index = range(0+comm.rank, samples.shape[0], comm.size)
     local_index = np.array_split(np.arange(samples.shape[0]),
             comm.size)[comm.rank]
     local_index = np.array(local_index, dtype='int64')
-    lam_vol_local = lam_vol[local_index]
+
+    # parallize 
+    for i, iglobal in enumerate(local_index):
+        samples_in_cell = 0
+        total_samples = 1e2
+        while samples_in_cell < num_l_emulate_local:
+            total_samples = total_samples*10
+            # Sample within an Lp ball until num_l_emulate_local samples are present in
+            # the ball
+            # TODO implement this for real
+            local_samples = np.random.random((total_samples, dim))
+
+            # determine the number of samples in the Voronoi cell (intersected
+            # with the input_domain)
+            if input_domain is not None:
+                left = np.repeat(input_domain[:, 0], total_samples, 0)
+                right = np.repeat(input_domain[:, 1], total_samples, 0)
+                left = np.all(np.greater_equal(local_samples, left), axis=1)
+                right = np.all(np.greater_equal(local_samples, right), axis=1)
+                inside = np.logical_and(left, right)
+                lambda_emulate = lambda_emulate[inside, :]
+
+            (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p,
+                    distance_upper_bound=sample_radii[iglobal])
+            samples_in_cell = np.sum(np.equal(emulate_ptr, iglobal))
+
+        # the volume for the Voronoi cell corresponding to this sample is the
+        # the volume of the Lp ball times the ratio
+        # "num_samples_in_cell/num_total_local_emulated_samples" 
+        lam_vol_local[i] = sample_Lp_ball_vol[iglobal]*float(samples_in_cell)/total_samples
+    
+    lam_vol = util.get_global_values(lam_vol_local)
 
     return (lam_vol, lam_vol_local, local_index)
 
