@@ -321,7 +321,7 @@ def prob_mc(samples, data, rho_D_M, d_distr_samples,
     P[global_index] = P_global[:]
     return (P, lam_vol, lambda_emulate, io_ptr, emulate_ptr)
 
-def estimate_volume(samples, lambda_emulate=None):
+def estimate_volume(samples, lambda_emulate=None, p=2):
     r"""
     Estimate the volume fraction of the Voronoi cells associated with
     ``samples`` using ``lambda_emulate`` as samples for Monte Carlo
@@ -332,6 +332,67 @@ def estimate_volume(samples, lambda_emulate=None):
     :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
     :param lambda_emulate: Samples used to partition the parameter space
     :type lambda_emulate: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :param int p: p for the L-p norm 
+    
+    :rtype: tuple
+    :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
+        global array of volume fractions, ``lam_vol_local`` is the local array
+        of volume fractions, and ``local_index`` a list of the global indices
+        for local arrays on this particular processor ``lam_vol_local =
+        lam_vol[local_index]``
+    
+    """
+
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1) 
+    if lambda_emulate is None:
+        lambda_emulate = samples
+ 
+    # Determine which emulated samples match with which model run samples
+    l_Tree = spatial.KDTree(samples)
+    (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+
+    # Apply the standard MC approximation to determine the number of emulated
+    # samples per model run sample. This is for approximating 
+    # \mu_Lambda(A_i \intersect b_j)
+    lam_vol = np.zeros((samples.shape[0],)) 
+    for i in range(samples.shape[0]):
+        lam_vol[i] = np.sum(np.equal(emulate_ptr, i))
+    clam_vol = np.copy(lam_vol) 
+    comm.Allreduce([lam_vol, MPI.DOUBLE], [clam_vol, MPI.DOUBLE], op=MPI.SUM)
+    lam_vol = clam_vol
+    num_emulated = lambda_emulate.shape[0]
+    num_emulated = comm.allreduce(num_emulated, op=MPI.SUM)
+    lam_vol = lam_vol/(num_emulated)
+
+    # Set up local arrays for parallelism
+    local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    lam_vol_local = lam_vol[local_index]
+
+    return (lam_vol, lam_vol_local, local_index)
+
+def estimate_local_volume(samples, input_domain, num_l_emulate, p=2, distribution='uniform',
+        a=None, b=None):
+    r"""
+
+    Exactly calculates the volume fraction of the Voronoice cells associated
+    with ``samples``. Specifically we are calculating 
+    :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`.
+
+    .. todo::
+        
+        Implement beta, normal, truncated normal distributions
+    
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param input_domain: The limits of the domain :math:`\mathcal{D}`.
+    :type input_domain: :class:`numpy.ndarray` of shape (ndim, 2)
+    :param int num_l_emulate: The number of emulated samples.
+    :param int p: p for the L-p norm 
+    :param string distribution: Probability distribution (uniform, normal,
+        truncnorm, beta)
+    :param float a: mean or alpha (normal/truncnorm, beta)
+    :param float b: covariance or beta (normal/truncnorm, beta)
 
     :rtype: tuple
     :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
@@ -341,6 +402,13 @@ def estimate_volume(samples, lambda_emulate=None):
         lam_vol[local_index]``
     
     """
+    # Calculate the pairwise distances
+    pairwise_distance = spatial.distance.pdist(samples, p=p)
+    pairwise_distance = spatial.distance.squareform(pairwise_distance)
+    pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
+    # Calculate mean, std of minimum pairwise distances
+    mean_pw_dist = np.
+
 
     if len(samples.shape) == 1:
         samples = np.expand_dims(samples, axis=1) 
@@ -372,6 +440,7 @@ def estimate_volume(samples, lambda_emulate=None):
     lam_vol_local = lam_vol[local_index]
 
     return (lam_vol, lam_vol_local, local_index)
+
 
 def exact_volume_1D(samples, input_domain, distribution='uniform', a=None,
         b=None): 
