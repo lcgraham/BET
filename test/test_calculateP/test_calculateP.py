@@ -34,7 +34,7 @@ class TestEmulateIIDLebesgue(unittest.TestCase):
         lam_left = np.array([0.0, .25, .4])
         lam_right = np.array([1.0, 4.0, .5])
 
-        self.lam_domain = np.zeros((3, 3))
+        self.lam_domain = np.zeros((3, 2))
         self.lam_domain[:, 0] = lam_left
         self.lam_domain[:, 1] = lam_right
 
@@ -77,7 +77,7 @@ class TestEstimateVolume(unittest.TestCase):
         lam_right = np.array([1.0, 4.0, .5])
         lam_width = lam_right-lam_left
 
-        self.lam_domain = np.zeros((3, 3))
+        self.lam_domain = np.zeros((3, 2))
         self.lam_domain[:, 0] = lam_left
         self.lam_domain[:, 1] = lam_right
 
@@ -133,7 +133,7 @@ class TestEstimateLocalVolume(unittest.TestCase):
         lam_right = np.array([1.0, 4.0, .5])
         lam_width = lam_right-lam_left
 
-        self.lam_domain = np.zeros((3, 3))
+        self.lam_domain = np.zeros((3, 2))
         self.lam_domain[:, 0] = lam_left
         self.lam_domain[:, 1] = lam_right
 

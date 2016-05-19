@@ -14,7 +14,7 @@ import numpy as np
 import scipy.spatial as spatial
 import bet.util as util
 from bet.Comm import comm, MPI
-import Lp_generalized_samples as lp
+import bet.sampling.Lp_generalized_samples as lp
 
 def emulate_iid_normal(num_l_emulate, mean, covariance):
     """
@@ -373,7 +373,7 @@ def estimate_volume(samples, lambda_emulate=None, p=2):
 
     return (lam_vol, lam_vol_local, local_index)
 
-def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=10,
+def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         p=2, sample_radii=None, max_num_l_emulate=1e3):
     r"""
 
@@ -407,7 +407,16 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=10,
     """
     # TODO this might work better if we first normalize the domain
     if len(samples.shape) == 1:
-        samples = np.expand_dims(samples, axis=1) 
+        samples = np.expand_dims(samples, axis=1)
+
+    # normalize the domain
+    domain_width = input_domain[:, 1] - input_domain[:, 0]
+    input_domain = input_domain - np.expand_dims(input_domain[:, 0], 1)
+    input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
+    samples = samples - np.expand_dims(input_domain[:, 0], 1)
+    samples = samples/np.repeat([domain_width], 2, 0).transpose()
+
+
 
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
@@ -421,24 +430,35 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=10,
     # samples
     if sample_radii is None:
         # Calculate the pairwise distances
-        pairwise_distance = spatial.distance.pdist(samples, p=p)
+        if not np.isinf(p):
+            pairwise_distance = spatial.distance.pdist(samples, p=p)
+        else:
+
+            pairwise_distance = spatial.distance.pdist(samples, p='chebyshev')
         pairwise_distance = spatial.distance.squareform(pairwise_distance)
         pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
         # Calculate mean, std of pairwise distances
         sample_radii = np.std(pairwise_distance_ma, 0)*3
     elif np.sum(sample_radii <=0) > 0:
         # Calculate the pairwise distances
-        pairwise_distance = spatial.distance.pdist(samples, p=p)
+        if not np.isinf(p):
+            pairwise_distance = spatial.distance.pdist(samples, p=p)
+        else:
+            pairwise_distance = spatial.distance.pdist(samples, p='chebyshev')
         pairwise_distance = spatial.distance.squareform(pairwise_distance)
         pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
         # Calculate mean, std of pairwise distances
-        sample_radii[sample_radii <= 0] = np.std(pairwise_distance_ma, 0)*3
+        # TODO this may be too large/small
+        # Estimate radius as 2.*STD of the pairwise distance
+        sample_radii[sample_radii <= 0] = np.std(pairwise_distance_ma, 0)*2.
 
     # determine the volume of the Lp ball
     dim = samples.shape[1]
-    sample_Lp_ball_vol = sample_radii**dim * scipy.special.gamma(1+1./p) / \
+    if not np.isinf(p):
+        sample_Lp_ball_vol = sample_radii**dim * scipy.special.gamma(1+1./p) / \
             scipy.special.gamma(1+float(dim)/p)
-
+    else:
+        sample_Lp_ball_vol = (2.0*sample_radii)**dim
 
     lam_vol = np.zeros((samples.shape[0],)) 
 
@@ -459,16 +479,17 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=10,
             # present in the Voronoi cell
             local_lambda_emulate = lp.Lp_generalized_uniform(dim,
                     total_samples, p, scale=sample_radii[iglobal],
-                    loc=samples[iglobal])  
+                    loc=samples[iglobal])
 
             # determine the number of samples in the Voronoi cell (intersected
             # with the input_domain)
             if input_domain is not None:
-                left = np.repeat(input_domain[:, 0], total_samples, 0)
-                right = np.repeat(input_domain[:, 1], total_samples, 0)
+                # TODO due to scaling we can just replace left, right with 0, 1
+                left = np.repeat([input_domain[:, 0]], total_samples, 0)
+                right = np.repeat([input_domain[:, 1]], total_samples, 0)
                 left = np.all(np.greater_equal(local_lambda_emulate, left),
                         axis=1) 
-                right = np.all(np.greater_equal(local_lambda_emulate, right),
+                right = np.all(np.less_equal(local_lambda_emulate, right),
                         axis=1) 
                 inside = np.logical_and(left, right)
                 local_lambda_emulate = local_lambda_emulate[inside, :]
@@ -481,13 +502,11 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=10,
         # the volume of the Lp ball times the ratio
         # "num_samples_in_cell/num_total_local_emulated_samples" 
         lam_vol_local[i] = sample_Lp_ball_vol[iglobal]*float(samples_in_cell)\
-                /total_samples
+                /float(total_samples)
     
     lam_vol = util.get_global_values(lam_vol_local)
     
     # normalize by the volume of the input_domain
-    #domain_width = input_domain[:, 1] - input_domain[:, 0]
-    #domain_vol = np.prod(domain_width)
     domain_vol = np.sum(lam_vol)
     lam_vol = lam_vol / domain_vol
     lam_vol_local = lam_vol_local / domain_vol
