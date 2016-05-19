@@ -117,6 +117,58 @@ class TestEstimateVolume(unittest.TestCase):
         nptest.assert_array_equal(self.lam_vol_local,
                 self.lam_vol[self.local_index])
 
+
+class TestEstimateLocalVolume(unittest.TestCase):
+    """
+    Test :meth:`bet.calculateP.calculateP.estimate_local_volulme`.
+    """
+    
+    def setUp(self):
+        """
+        Test dimension, number of samples, and that all the samples are within
+        lambda_domain.
+
+        """
+        lam_left = np.array([0.0, .25, .4])
+        lam_right = np.array([1.0, 4.0, .5])
+        lam_width = lam_right-lam_left
+
+        self.lam_domain = np.zeros((3, 3))
+        self.lam_domain[:, 0] = lam_left
+        self.lam_domain[:, 1] = lam_right
+
+        num_samples_dim = 2
+        start = lam_left+lam_width/(2*num_samples_dim)
+        stop = lam_right-lam_width/(2*num_samples_dim)
+        d1_arrays = []
+        
+        for l, r in zip(start, stop):
+            d1_arrays.append(np.linspace(l, r, num_samples_dim))
+
+        self.samples = util.meshgrid_ndim(d1_arrays)
+        self.volume_exact = 1.0/self.samples.shape[0]
+        self.lam_vol, self.lam_vol_local, self.local_index = calcP.\
+                estimate_local_volume(self.samples, self.lam_domain)
+        
+    def test_dimension(self):
+        """
+        Check the dimension.
+        """
+        nptest.assert_array_equal(self.lam_vol.shape, (len(self.samples), ))
+        nptest.assert_array_equal(self.lam_vol_local.shape,
+                (len(self.samples)/comm.size, ))
+        nptest.assert_array_equal(self.lam_vol_local.shape,
+                len(self.local_index))
+
+    def test_volumes(self):
+        """
+        Check that the volumes are within a tolerance for a regular grid of
+        samples.
+        """
+        nptest.assert_array_almost_equal(self.lam_vol, self.volume_exact, 3)
+        nptest.assert_array_equal(self.lam_vol_local,
+                self.lam_vol[self.local_index])
+
 class TestExactVolume1D(unittest.TestCase):
     """
     Test :meth:`bet.calculateP.calculateP.exact_volume_1D`.
