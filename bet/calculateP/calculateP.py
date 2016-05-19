@@ -393,7 +393,8 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
     :param int num_l_emulate_local: The number of emulated samples.
     :param int p: p for the L-p norm 
     :param sample_radii: Estimated radii of the Voronoi cell associated with
-        each sample
+        each sample. WARNING: The ``input_domain`` MUST be scaled to the unit
+        square.
     :type sample_radii: :class:`numpy.ndarry` of shape (samples.shape[0],)
     :param int max_num_l_emulate: Maximum number of local emulated samples
 
@@ -405,18 +406,16 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         lam_vol[local_index]``
     
     """
-    # TODO this might work better if we first normalize the domain
     if len(samples.shape) == 1:
         samples = np.expand_dims(samples, axis=1)
 
     # normalize the domain
     domain_width = input_domain[:, 1] - input_domain[:, 0]
-    input_domain = input_domain - np.expand_dims(input_domain[:, 0], 1)
+    left = input_domain[:, 0]
+    input_domain = input_domain - np.expand_dims(left, 1)
     input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
-    samples = samples - np.expand_dims(input_domain[:, 0], 1)
-    samples = samples/np.repeat([domain_width], 2, 0).transpose()
-
-
+    samples = samples - np.array([left]*samples.shape[0])
+    samples = samples/np.array([domain_width]*samples.shape[0])
 
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
@@ -484,15 +483,9 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
             # determine the number of samples in the Voronoi cell (intersected
             # with the input_domain)
             if input_domain is not None:
-                # TODO due to scaling we can just replace left, right with 0, 1
-                left = np.repeat([input_domain[:, 0]], total_samples, 0)
-                right = np.repeat([input_domain[:, 1]], total_samples, 0)
-                left = np.all(np.greater_equal(local_lambda_emulate, left),
-                        axis=1) 
-                right = np.all(np.less_equal(local_lambda_emulate, right),
-                        axis=1) 
-                inside = np.logical_and(left, right)
-                local_lambda_emulate = local_lambda_emulate[inside, :]
+                inside = np.all(np.logical_and(local_lambda_emulate >= 0.0,
+                        local_lambda_emulate <= 1.0), 1)
+                local_lambda_emulate = local_lambda_emulate[inside]
 
             (_, emulate_ptr) = l_Tree.query(local_lambda_emulate, p=p,
                     distance_upper_bound=sample_radii[iglobal])

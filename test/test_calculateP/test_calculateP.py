@@ -165,7 +165,7 @@ class TestEstimateLocalVolume(unittest.TestCase):
         Check that the volumes are within a tolerance for a regular grid of
         samples.
         """
-        nptest.assert_array_almost_equal(self.lam_vol, self.volume_exact, 3)
+        nptest.assert_array_almost_equal(self.lam_vol, self.volume_exact, 2)
         nptest.assert_array_equal(self.lam_vol_local,
                 self.lam_vol[self.local_index])
 
