@@ -9,49 +9,12 @@ This module provides methods for calulating the probability measure
 * :mod:`~bet.calculateP.calculateP.prob_samples_mc` estimates the volumes of
     the voronoi cells using MC integration
 """
-from bet.Comm import comm, MPI 
+import scipy.stats
 import numpy as np
 import scipy.spatial as spatial
 import bet.util as util
-import scipy.stats
-
-def emulate_iid_truncnorm(lam_domain, num_l_emulate, mean, covariance):
-    """
-    Sample the parameter space using emulated samples drawn from a multivariate
-    truncated normal distribution. These samples are iid so that we can apply the
-    standard MC assumuption/approximation. See
-    :meth:`scipy.stats.truncnorm`.
-
-    :param lam_domain: The domain for each parameter for the model.
-    :type lam_domain: :class:`~numpy.ndarray` of shape (ndim, 2)  
-    :param num_l_emulate: The number of emulated samples.
-    :type num_l_emulate: int
-    :param mean: The mean of the n-dimensional distribution.
-    :type mean: :class:`numpy.ndarray` of shape (ndim, )
-    :param covariance: The covariance of the n-dimensional distribution.
-    :type covariance: 2-D :class:`numpy.ndarray` of shape (ndim, ndim)
-
-    :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
-    :returns: a set of samples for emulation
-
-    """
-    num_l_emulate = (num_l_emulate/comm.size) + \
-            (comm.rank < num_l_emulate%comm.size)
-    mean = util.fix_dimensions_vector(mean)
-    if not isinstance(covariance, np.ndarray):
-        covariance = np.array([[covariance]])i
-    # TODO do a tensor product
-    lambda_emulate = np.zeros((num_l_emulate, lam_domain.shape[0]))
-    for i in xrange(lam_domain.shape[0]):
-        lambda_emulate[:, i] = scipy.stats.truncnorm.rvs(a=float(lam_domain[:, 0]),
-            b=float(lam_domain[:, 1]), loc=float(mean),
-            scale=float(covariance**.5)), size=num_l_emulate) 
-    # TODO do a tensor product here with the things?
-    #lambda_emulate = np.random.multivariate_truncnormal(mean, covariance,
-    #        num_l_emulate)
-    return lambda_emulate 
-
-
+from bet.Comm import comm, MPI
+import bet.sampling.Lp_generalized_samples as lp
 
 def emulate_iid_normal(num_l_emulate, mean, covariance):
     """
@@ -79,6 +42,43 @@ def emulate_iid_normal(num_l_emulate, mean, covariance):
     lambda_emulate = np.random.multivariate_normal(mean, covariance,
             num_l_emulate)
     return lambda_emulate 
+
+def emulate_iid_truncnorm(num_l_emulate, mean, covariance, input_domain):
+    """
+    Sample the parameter space using emulated samples drawn from a 
+    truncated normal distribution. These samples are iid so that we can apply
+    the
+    standard MC assumuption/approximation. See
+    :meth:`scipy.stats.truncnorm`.
+
+    :param num_l_emulate: The number of emulated samples.
+    :type num_l_emulate: int
+    :param mean: The mean of the n-dimensional distribution.
+    :type mean: :class:`numpy.ndarray` of shape (ndim, )
+    :param covariance: The covariance of the n-dimensional distribution.
+    :type covariance: 2-D :class:`numpy.ndarray` of shape (ndim, ndim)
+    :param input_domain: The domain for each parameter of the model.
+    :type input_domain: :class:`~numpy.ndarray` of shape (dim, 2). Note that
+        ``dim==1``.
+
+    :rtype: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :returns: a set of samples for emulation
+
+    
+    """
+    # TODO update using tensor product to create a multivarite normal
+    a = (input_domain[:, 0] - mean) / np.sqrt(covariance)
+    b = (input_domain[:, 1] - mean) / np.sqrt(covariance)
+    num_l_emulate = (num_l_emulate/comm.size) + \
+            (comm.rank < num_l_emulate%comm.size)
+    lambda_emulate = scipy.stats.truncnorm.rvs(a, b, loc=mean, scale=np.sqrt(covariance),
+            size=num_l_emulate)
+    return np.expand_dims(lambda_emulate, 1)
+
+class dim_not_matching(Exception):
+    """
+    Exception for when the dimension is inconsistent.
+    """
 
 def emulate_iid_lebesgue(lam_domain, num_l_emulate):
     """
@@ -108,6 +108,11 @@ def emulate_iid_beta(a, b, lam_domain, num_l_emulate):
     distribution. These samples are iid so that we can apply the standard
     MC assumuption/approximation. See :meth:`numpy.random.beta`.
 
+    .. note::
+        
+        See :class:`scipy.stats.dirichlet` for the multivariate extension of
+        the Beta function. This has not yet need implemented.
+
     :param a float: alpha
     :param b float: beta
     :param lam_domain: The domain for each parameter for the model.
@@ -119,6 +124,7 @@ def emulate_iid_beta(a, b, lam_domain, num_l_emulate):
     :returns: a set of samples for emulation
 
     """
+    # TODO implement multivariate version
     num_l_emulate = (num_l_emulate/comm.size) + \
             (comm.rank < num_l_emulate%comm.size)
     lam_width = lam_domain[:, 1] - lam_domain[:, 0]
@@ -216,7 +222,8 @@ def prob(samples, data, rho_D_M, d_distr_samples, d_Tree=None):
         d_Tree = spatial.KDTree(d_distr_samples)
 
     # Set up local arrays for parallelism
-    local_index = range(0+comm.rank, samples.shape[0], comm.size)
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
     samples_local = samples[local_index, :]
     data_local = data[local_index, :]
     local_array = np.array(local_index, dtype='int64')
@@ -314,7 +321,7 @@ def prob_mc(samples, data, rho_D_M, d_distr_samples,
     P[global_index] = P_global[:]
     return (P, lam_vol, lambda_emulate, io_ptr, emulate_ptr)
 
-def estimate_volume(samples, lambda_emulate=None):
+def estimate_volume(samples, lambda_emulate=None, p=2):
     r"""
     Estimate the volume fraction of the Voronoi cells associated with
     ``samples`` using ``lambda_emulate`` as samples for Monte Carlo
@@ -325,7 +332,8 @@ def estimate_volume(samples, lambda_emulate=None):
     :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
     :param lambda_emulate: Samples used to partition the parameter space
     :type lambda_emulate: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
-
+    :param int p: p for the L-p norm 
+    
     :rtype: tuple
     :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
         global array of volume fractions, ``lam_vol_local`` is the local array
@@ -342,7 +350,7 @@ def estimate_volume(samples, lambda_emulate=None):
  
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
-    (_, emulate_ptr) = l_Tree.query(lambda_emulate)
+    (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
 
     # Apply the standard MC approximation to determine the number of emulated
     # samples per model run sample. This is for approximating 
@@ -358,12 +366,209 @@ def estimate_volume(samples, lambda_emulate=None):
     lam_vol = lam_vol/(num_emulated)
 
     # Set up local arrays for parallelism
-    local_index = range(0+comm.rank, samples.shape[0], comm.size)
-    lam_vol_local = lam_vol[local_index]
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
+    lam_vol_local = np.array_split(lam_vol, comm.size)[comm.rank]
 
     return (lam_vol, lam_vol_local, local_index)
 
+def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
+        p=2, sample_radii=None, max_num_l_emulate=1e3):
+    r"""
 
+    Exactly calculates the volume fraction of the Voronoice cells associated
+    with ``samples``. Specifically we are calculating 
+    :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`. Here
+    all of the samples are drawn from the generalized Lp uniform distribution.
+
+    Volume of the L-p ball is obtained from  Wang, X.. (2005). Volumes of
+    Generalized Unit Balls. Mathematics Magazine, 78(5), 390-395.
+    `DOI 10.2307/30044198 <http://doi.org/10.2307/30044198>`_
+    
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param input_domain: The limits of the domain :math:`\mathcal{D}`.
+    :type input_domain: :class:`numpy.ndarray` of shape (ndim, 2)
+    :param int num_l_emulate_local: The number of emulated samples.
+    :param int p: p for the L-p norm 
+    :param sample_radii: Estimated radii of the Voronoi cell associated with
+        each sample. WARNING: The ``input_domain`` MUST be scaled to the unit
+        square.
+    :type sample_radii: :class:`numpy.ndarry` of shape (samples.shape[0],)
+    :param int max_num_l_emulate: Maximum number of local emulated samples
+
+    :rtype: tuple
+    :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
+        global array of volumem fractions, ``lam_vol_local`` is the local array
+        of volume fractions, and ``local_index`` a list of the global indices
+        for local arrays on this particular processor ``lam_vol_local =
+        lam_vol[local_index]``
+    
+    """
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1)
+
+    # normalize the domain
+    domain_width = input_domain[:, 1] - input_domain[:, 0]
+    left = input_domain[:, 0]
+    input_domain = input_domain - np.expand_dims(left, 1)
+    input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
+    samples = samples - np.array([left]*samples.shape[0])
+    samples = samples/np.array([domain_width]*samples.shape[0])
+
+    # Determine which emulated samples match with which model run samples
+    l_Tree = spatial.KDTree(samples)
+
+    # for each sample
+    # determine the appropriate radius of the Lp ball (this should be the
+    # distance to the farthest neighboring Voronoi cell)
+
+    # calculating this exactly is hard so we will estimate it as follows
+    # TODO it is unclear whether to use min, mean, or the first n nearest
+    # samples
+    if sample_radii is None:
+        # Calculate the pairwise distances
+        if not np.isinf(p):
+            pairwise_distance = spatial.distance.pdist(samples, p=p)
+        else:
+
+            pairwise_distance = spatial.distance.pdist(samples, p='chebyshev')
+        pairwise_distance = spatial.distance.squareform(pairwise_distance)
+        pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
+        # Calculate mean, std of pairwise distances
+        sample_radii = np.std(pairwise_distance_ma, 0)*3
+    elif np.sum(sample_radii <=0) > 0:
+        # Calculate the pairwise distances
+        if not np.isinf(p):
+            pairwise_distance = spatial.distance.pdist(samples, p=p)
+        else:
+            pairwise_distance = spatial.distance.pdist(samples, p='chebyshev')
+        pairwise_distance = spatial.distance.squareform(pairwise_distance)
+        pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
+        # Calculate mean, std of pairwise distances
+        # TODO this may be too large/small
+        # Estimate radius as 2.*STD of the pairwise distance
+        sample_radii[sample_radii <= 0] = np.std(pairwise_distance_ma, 0)*2.
+
+    # determine the volume of the Lp ball
+    dim = samples.shape[1]
+    if not np.isinf(p):
+        sample_Lp_ball_vol = sample_radii**dim * scipy.special.gamma(1+1./p) / \
+            scipy.special.gamma(1+float(dim)/p)
+    else:
+        sample_Lp_ball_vol = (2.0*sample_radii)**dim
+
+    lam_vol = np.zeros((samples.shape[0],)) 
+
+    # Set up local arrays for parallelism
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
+    lam_vol_local = np.zeros(local_index.shape)
+
+    # parallize 
+    for i, iglobal in enumerate(local_index):
+        samples_in_cell = 0
+        total_samples = 10
+        while samples_in_cell < num_l_emulate_local and \
+                total_samples < max_num_l_emulate:
+            total_samples = total_samples*10
+            # Sample within an Lp ball until num_l_emulate_local samples are
+            # present in the Voronoi cell
+            local_lambda_emulate = lp.Lp_generalized_uniform(dim,
+                    total_samples, p, scale=sample_radii[iglobal],
+                    loc=samples[iglobal])
+
+            # determine the number of samples in the Voronoi cell (intersected
+            # with the input_domain)
+            if input_domain is not None:
+                inside = np.all(np.logical_and(local_lambda_emulate >= 0.0,
+                        local_lambda_emulate <= 1.0), 1)
+                local_lambda_emulate = local_lambda_emulate[inside]
+
+            (_, emulate_ptr) = l_Tree.query(local_lambda_emulate, p=p,
+                    distance_upper_bound=sample_radii[iglobal])
+            samples_in_cell = np.sum(np.equal(emulate_ptr, iglobal))
+
+        # the volume for the Voronoi cell corresponding to this sample is the
+        # the volume of the Lp ball times the ratio
+        # "num_samples_in_cell/num_total_local_emulated_samples" 
+        lam_vol_local[i] = sample_Lp_ball_vol[iglobal]*float(samples_in_cell)\
+                /float(total_samples)
+    
+    lam_vol = util.get_global_values(lam_vol_local)
+    
+    # normalize by the volume of the input_domain
+    domain_vol = np.sum(lam_vol)
+    lam_vol = lam_vol / domain_vol
+    lam_vol_local = lam_vol_local / domain_vol
+
+    return (lam_vol, lam_vol_local, local_index)
+
+def exact_volume_1D(samples, input_domain, distribution='uniform', a=None,
+        b=None): 
+    r"""
+
+    Exactly calculates the volume fraction of the Voronoice cells associated
+    with ``samples``. Specifically we are calculating 
+    :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`.
+    
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param input_domain: The limits of the domain :math:`\mathcal{D}`.
+    :type input_domain: :class:`numpy.ndarray` of shape (ndim, 2)
+    :param string distribution: Probability distribution (uniform, normal,
+        truncnorm, beta)
+    :param float a: mean or alpha (normal/truncnorm, beta)
+    :param float b: covariance or beta (normal/truncnorm, beta)
+
+    :rtype: tuple
+    :returns: (lam_vol, lam_vol_local, local_index) where ``lam_vol`` is the
+        global array of volume fractions, ``lam_vol_local`` is the local array
+        of volume fractions, and ``local_index`` a list of the global indices
+        for local arrays on this particular processor ``lam_vol_local =
+        lam_vol[local_index]``
+    
+    """
+
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1)
+
+    #if sample_obj.get_dim() != 1:
+    if samples.shape[1] != 1:
+        raise dim_not_matching("Only applicable for 1D domains.")
+
+    # sort the samples
+    sort_ind = np.squeeze(np.argsort(samples, 0))
+    sorted_samples = samples[sort_ind]
+    domain_width = input_domain[:, 1] - input_domain[:, 0]
+
+    # determine the mid_points which are the edges of the associated voronoi
+    # cells and bound the cells by the domain
+    edges = np.concatenate(([input_domain[:, 0]], (sorted_samples[:-1, :] +\
+        sorted_samples[1:, :])*.5, [input_domain[:, 1]]))
+    if distribution == 'normal':
+        edges = scipy.stats.norm.cdf(edges, loc=a, scale=np.sqrt(b))
+    elif distribution == 'truncnorm':
+        l = (input_domain[:, 0] - a) / np.sqrt(b)
+        r = (input_domain[:, 1] - a) / np.sqrt(b)
+        edges = scipy.stats.truncnorm.cdf(edges, a=l, b=r, loc=a, scale=np.sqrt(b))
+    elif distribution == 'beta':
+        edges = scipy.stats.beta.cdf(edges, a=a, b=b,
+                loc=input_domain[:, 0], scale=domain_width)
+    # calculate difference between right and left of each cell and renormalize
+    sorted_lam_vol = np.squeeze(edges[1:, :] - edges[:-1, :])
+    lam_vol = np.zeros(sorted_lam_vol.shape)
+    lam_vol[sort_ind] = sorted_lam_vol
+    if distribution == 'uniform':
+        lam_vol = lam_vol/domain_width
+    # Set up local arrays for parallelism
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
+    lam_vol_local = np.array_split(lam_vol, comm.size)[comm.rank]
+    return (lam_vol, lam_vol_local, local_index)
     
 
     

@@ -30,4 +30,4 @@ The following developmental modules not NOT OPERATIONAL:
 __all__ = ['basicSampling', 'adaptiveSampling', 'dev_multi_dist_kernel',
     'slopedIndicatorFunction', 'smoothedIndicatorFunction', 'boundarySampling',
     'limitedMemorySampling', 'surrogateSampling', 'reseedSampling',
-    'gradientSampling']
+    'gradientSampling', 'Lp_generalized_samples']

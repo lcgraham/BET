@@ -163,11 +163,8 @@ class sampler(object):
         if not(parallel) or comm.size == 1:
             data = self.lb_model(samples)
         elif parallel:
-            my_len = self.num_samples/comm.size
-            if comm.rank != comm.size-1:
-                my_index = range(0+comm.rank*my_len, (comm.rank+1)*my_len)
-            else:
-                my_index = range(0+comm.rank*my_len, self.num_samples)
+            local_index = np.array_split(np.arange(self.num_samples),
+                    comm.size)[comm.rank]
             if len(samples.shape) == 1:
                 my_samples = samples[my_index]
             else:
