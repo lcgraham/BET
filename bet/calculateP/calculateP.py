@@ -373,6 +373,83 @@ def estimate_volume(samples, lambda_emulate=None, p=2):
 
     return (lam_vol, lam_vol_local, local_index)
 
+def estimate_radii_and_volume(samples, lambda_emulate=None, p=2,
+        normalize=True, input_domain=None):
+    r"""
+    Estimate the radii and volume fraction of the Voronoi cells associated with
+    ``samples`` using ``lambda_emulate`` as samples for Monte Carlo
+    integration. Specifically we are estimating 
+    :math:`\mu_\Lambda(\mathcal(V)_{i,N} \cap A)/\mu_\Lambda(\Lambda)`.
+    
+    :param samples: The samples in parameter space for which the model was run.
+    :type samples: :class:`~numpy.ndarray` of shape (num_samples, ndim)
+    :param lambda_emulate: Samples used to partition the parameter space
+    :type lambda_emulate: :class:`~numpy.ndarray` of shape (num_l_emulate, ndim)
+    :param int p: p for the L-p norm
+    :param bool normalize: estimate normalized radius
+    :param input_domain: The limits of the domain :math:`\mathcal{D}`.
+    :type input_domain: :class:`~numpy.ndarray` of shape (dim, 2).
+    
+    :rtype: tuple
+    :returns: (lam_rad, lam_rad_local, lam_vol, lam_vol_local, local_index)
+        where ``lam_vol`` is the global array of volume fractions,
+        ``lam_vol_local`` is the local array of volume fractions, and
+        ``local_index`` a list of the global indices for local arrays on this
+        particular processor ``lam_vol_local = lam_vol[local_index]``
+    
+    """
+
+    if len(samples.shape) == 1:
+        samples = np.expand_dims(samples, axis=1) 
+    if lambda_emulate is None:
+        lambda_emulate = samples
+
+    # normalize the domain
+    if normalize:
+        domain_width = input_domain[:, 1] - input_domain[:, 0]
+        left = input_domain[:, 0]
+        input_domain = input_domain - np.expand_dims(left, 1)
+        input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
+        norm_samples = samples - np.array([left]*samples.shape[0])
+        norm_samples = norm_samples/np.array([domain_width]*samples.shape[0])
+        norm_lambda_emulate = lambda_emulate - np.array([left]*lambda_emulate.shape[0])
+        norm_lambda_emulate = norm_lambda_emulate/np.array([domain_width]*lambda_emulate.shape[0])
+ 
+    # Determine which emulated samples match with which model run samples
+    l_Tree = spatial.KDTree(samples)
+    (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+
+    # Apply the standard MC approximation to determine the number of emulated
+    # samples per model run sample. This is for approximating 
+    # \mu_Lambda(A_i \intersect b_j)
+    lam_vol = np.zeros((samples.shape[0],)) 
+    lam_rad = np.zeros((samples.shape[0],)) 
+    for i in range(samples.shape[0]):
+        samples_in_cell = np.equal(emulate_ptr, i)
+        lam_vol[i] = np.sum(samples_in_cell)
+        if normalize:
+            lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[norm_samples_in_cell,\
+                :] - norm_samples[i, :], ord=p, axis=1))
+        else:
+            lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[samples_in_cell,\
+                :] - samples[i, :], ord=p, axis=1))
+    lam_rad = comm.allreduce(lam_rad, op=MPI.SUM) 
+    clam_vol = np.copy(lam_vol) 
+    comm.Allreduce([lam_vol, MPI.DOUBLE], [clam_vol, MPI.DOUBLE], op=MPI.SUM)
+    lam_vol = clam_vol
+    num_emulated = lambda_emulate.shape[0]
+    num_emulated = comm.allreduce(num_emulated, op=MPI.SUM)
+    lam_vol = lam_vol/(num_emulated)
+
+    # Set up local arrays for parallelism
+    local_index = np.array_split(np.arange(samples.shape[0]),
+            comm.size)[comm.rank]
+    local_index = np.array(local_index, dtype='int64')
+    lam_vol_local = np.array_split(lam_vol, comm.size)[comm.rank]
+    lam_rad_local = np.array_split(lam_rad, comm.size)[comm.rank]
+
+    return (lam_rad, lam_rad_local, lam_vol, lam_vol_local, local_index)
+
 def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         p=2, sample_radii=None, max_num_l_emulate=1e3):
     r"""
