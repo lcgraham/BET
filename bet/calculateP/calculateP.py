@@ -412,16 +412,15 @@ def estimate_radii_and_volume(samples, lambda_emulate=None, p=2,
         input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
         norm_samples = samples - np.array([left]*samples.shape[0])
         norm_samples = norm_samples/np.array([domain_width]*samples.shape[0])
-        norm_lambda_emulate = lambda_emulate - np.array([left]*lambda_emulate.shape[0])
-        norm_lambda_emulate = norm_lambda_emulate/np.array([domain_width]*lambda_emulate.shape[0])
  
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
 
+    (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+
     if normalize:
-        (_, emulate_ptr) = l_Tree.query(norm_lambda_emulate, p=p)
-    else:
-        (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+        norm_lambda_emulate = lambda_emulate - np.array([left]*lambda_emulate.shape[0])
+        norm_samples = norm_samples/np.array([domain_width]*samples.shape[0])
 
     # Apply the standard MC approximation to determine the number of emulated
     # samples per model run sample. This is for approximating 
@@ -495,16 +494,15 @@ def estimate_radii(samples, lambda_emulate=None, p=2,
         input_domain = input_domain/np.repeat([domain_width], 2, 0).transpose()
         norm_samples = samples - np.array([left]*samples.shape[0])
         norm_samples = norm_samples/np.array([domain_width]*samples.shape[0])
-        norm_lambda_emulate = lambda_emulate - np.array([left]*lambda_emulate.shape[0])
-        norm_lambda_emulate = norm_lambda_emulate/np.array([domain_width]*lambda_emulate.shape[0])
  
     # Determine which emulated samples match with which model run samples
     l_Tree = spatial.KDTree(samples)
 
+    (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+
     if normalize:
-        (_, emulate_ptr) = l_Tree.query(norm_lambda_emulate, p=p)
-    else:
-        (_, emulate_ptr) = l_Tree.query(lambda_emulate, p=p)
+        norm_lambda_emulate = lambda_emulate - np.array([left]*lambda_emulate.shape[0])
+        norm_samples = norm_samples/np.array([domain_width]*samples.shape[0])
 
     # Apply the standard MC approximation to determine the number of emulated
     # samples per model run sample. This is for approximating 
