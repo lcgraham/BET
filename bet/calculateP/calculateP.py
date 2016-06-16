@@ -374,7 +374,7 @@ def estimate_volume(samples, lambda_emulate=None, p=2):
     return (lam_vol, lam_vol_local, local_index)
 
 def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
-        p=2, sample_radii=None, max_num_l_emulate=1e3):
+        p=2, sample_radii=None, max_num_l_emulate=1e4):
     r"""
 
     Exactly calculates the volume fraction of the Voronoice cells associated
