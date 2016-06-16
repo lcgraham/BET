@@ -159,6 +159,7 @@ class MPI_for_no_mpi4py(object):
         Initialization
         """
         self.SUM = None
+        self.MAX = None
         self.DOUBLE = float
         self.INT = int
         self.BOOL = bool
