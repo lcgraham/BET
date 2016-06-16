@@ -601,7 +601,7 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         # create emulated samples
         num_l_emulate = np.max([1e4, samples.shape[0]*20])
         # estimate radii
-        estimate_radii(samples,
+        sample_radii = 1.5*estimate_radii(samples,
                 lambda_emulate=emulate_iid_lebesgue(input_domain,
                     num_l_emulate) , p=p, normalize=True,
                 input_domain=input_domain)
