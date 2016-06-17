@@ -510,12 +510,13 @@ def estimate_radii(samples, lambda_emulate=None, p=2,
     lam_rad = np.zeros((samples.shape[0],)) 
     for i in range(samples.shape[0]):
         samples_in_cell = np.equal(emulate_ptr, i)
-        if normalize:
-            lam_rad[i] = np.max(np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
-                :] - norm_samples[i, :], ord=p, axis=1))
-        else:
-            lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[samples_in_cell,\
-                :] - samples[i, :], ord=p, axis=1))
+        if np.sum(samples_in_cell) > 0:
+            if normalize:
+                lam_rad[i] = np.max(np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
+                    :] - norm_samples[i, :], ord=p, axis=1))
+            else:
+                lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[samples_in_cell,\
+                    :] - samples[i, :], ord=p, axis=1))
     clam_rad = np.copy(lam_rad) 
     comm.Allreduce([lam_rad, MPI.DOUBLE], [clam_rad, MPI.DOUBLE], op=MPI.MAX)
     lam_rad = clam_rad
@@ -601,10 +602,11 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         # create emulated samples
         num_l_emulate = np.max([1e4, samples.shape[0]*20])
         # estimate radii
-        sample_radii = 1.5*estimate_radii(samples,
+        sample_radii, _, _ = estimate_radii(samples,
                 lambda_emulate=emulate_iid_lebesgue(input_domain,
                     num_l_emulate) , p=p, normalize=True,
                 input_domain=input_domain)
+        sample_radii *= 1.5
     if np.sum(sample_radii <=0) > 0:
         # Calculate the pairwise distances
         if not np.isinf(p):
@@ -613,10 +615,11 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
             pairwise_distance = spatial.distance.pdist(samples, p='chebyshev')
         pairwise_distance = spatial.distance.squareform(pairwise_distance)
         pairwise_distance_ma = np.ma.masked_less_equal(pairwise_distance, 0.)
+        prob_est_radii = np.std(pairwise_distance_ma*.5, 0)*2.
         # Calculate mean, std of pairwise distances
         # TODO this may be too large/small
         # Estimate radius as 2.*STD of the pairwise distance
-        sample_radii[sample_radii <= 0] = np.std(pairwise_distance_ma*.5, 0)*2.
+        sample_radii[sample_radii <= 0] = prob_est_radii[sample_radii <= 0]
 
     # determine the volume of the Lp ball
     dim = samples.shape[1]
