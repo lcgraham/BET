@@ -391,8 +391,16 @@ def estimate_radii_and_volume(samples, lambda_emulate=None, p=2,
     :type input_domain: :class:`~numpy.ndarray` of shape (dim, 2).
     
     :rtype: tuple
-    :returns: (lam_rad, lam_rad_local, lam_vol, lam_vol_local, local_index)
-        where ``lam_vol`` is the global array of volume fractions,
+    :returns: (lam_rad, lam_rad_local, refine_candidate,
+        refine_candicate_local, lam_vol, lam_vol_local, local_index)
+        ``lam_rad`` is the global array of radii, ``lam_rad_local`` is the
+        local array of radii, and ``local_index`` a list of the global indices
+        for local arrays on this particular processor ``lam_rad_local =
+        lam_rad[local_index]``.  ``refine_candidate`` and
+        ``refine_candidate_local`` are the candidate emulated samples to use to
+        refine each Voronoi cell, if a particular cell does not have a
+        candidate refinement sample then this value is ``np.nan`` of the
+        appropriate shape. ``lam_vol`` is the global array of volume fractions,
         ``lam_vol_local`` is the local array of volume fractions, and
         ``local_index`` a list of the global indices for local arrays on this
         particular processor ``lam_vol_local = lam_vol[local_index]``
@@ -427,15 +435,30 @@ def estimate_radii_and_volume(samples, lambda_emulate=None, p=2,
     # \mu_Lambda(A_i \intersect b_j)
     lam_vol = np.zeros((samples.shape[0],)) 
     lam_rad = np.zeros((samples.shape[0],)) 
+    refine_candidate = np.full(samples.shape[0], np.nan) 
     for i in range(samples.shape[0]):
         samples_in_cell = np.equal(emulate_ptr, i)
         lam_vol[i] = np.sum(samples_in_cell)
-        if normalize:
-            lam_rad[i] = np.max(np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
-                :] - norm_samples[i, :], ord=p, axis=1))
-        else:
-            lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[samples_in_cell,\
-                :] - samples[i, :], ord=p, axis=1))
+        if lam_vol[i] > 0:
+            if normalize:
+                temp_dist = np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
+                    :] - norm_samples[i, :], ord=p, axis=1)
+                lam_rad[i] = np.max(temp_dist)
+                refine_candidate[i, :] = norm_lambda_emulate[np.argmax(\
+                        temp_dist), :]
+            else:
+                temp_dist = np.linalg.norm(lambda_emulate[samples_in_cell,\
+                    :] - samples[i, :], ord=p, axis=1)
+                lam_rad[i] = np.max(temp_dist)
+                refine_candidate[i, :] = lambda_emulate[np.argmax(\
+                        temp_dist), :]
+            # determine the max distance and refine_candidate over all the
+            # processors
+            all_temp_dist = comm.allgather(temp_dist)
+            all_refine_candidate = comm.allgather(refine_candidate[i, :])
+            refine_candidate[i, :] = all_refine_candidate[np.argmax(all_temp_dist)]
+
+
     clam_rad = np.copy(lam_rad) 
     comm.Allreduce([lam_rad, MPI.DOUBLE], [clam_rad, MPI.DOUBLE], op=MPI.MAX)
     lam_rad = clam_rad
@@ -452,8 +475,10 @@ def estimate_radii_and_volume(samples, lambda_emulate=None, p=2,
     local_index = np.array(local_index, dtype='int64')
     lam_vol_local = np.array_split(lam_vol, comm.size)[comm.rank]
     lam_rad_local = np.array_split(lam_rad, comm.size)[comm.rank]
-
-    return (lam_rad, lam_rad_local, lam_vol, lam_vol_local, local_index)
+    refine_candidate_local = np.array_split(refine_candidate,
+            comm.size)[comm.rank]
+    return (lam_rad, lam_rad_local, refine_candidate, refine_candidate_local,
+            lam_vol, lam_vol_local, local_index)
 
 def estimate_radii(samples, lambda_emulate=None, p=2,
         normalize=True, input_domain=None):
@@ -473,11 +498,15 @@ def estimate_radii(samples, lambda_emulate=None, p=2,
     :type input_domain: :class:`~numpy.ndarray` of shape (dim, 2).
     
     :rtype: tuple
-    :returns: (lam_rad, lam_rad_local, local_index)
-        where ``lam_rad`` is the global array of radii,
-        ``lam_rad_local`` is the local array of radii, and
+    :returns: (lam_rad, lam_rad_local, refine_candidate,
+        refine_candicate_local, local_index) ``lam_rad`` is the global array
+        of radii, ``lam_rad_local`` is the local array of radii, and
         ``local_index`` a list of the global indices for local arrays on this
-        particular processor ``lam_rad_local = lam_rad[local_index]``
+        particular processor ``lam_rad_local = lam_rad[local_index]``.
+        ``refine_candidate`` and ``refine_candidate_local`` are the candidate
+        emulated samples to use to refine each Voronoi cell, if a particular
+        cell does not have a candidate refinement sample then this value is
+        ``np.nan`` of the appropriate shape
     
     """
 
@@ -508,28 +537,42 @@ def estimate_radii(samples, lambda_emulate=None, p=2,
     # samples per model run sample. This is for approximating 
     # \mu_Lambda(A_i \intersect b_j)
     lam_rad = np.zeros((samples.shape[0],)) 
+    refine_candidate = np.full(samples.shape[0], np.nan) 
+
     for i in range(samples.shape[0]):
         samples_in_cell = np.equal(emulate_ptr, i)
         if np.sum(samples_in_cell) > 0:
             if normalize:
-                lam_rad[i] = np.max(np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
-                    :] - norm_samples[i, :], ord=p, axis=1))
+                temp_dist = np.linalg.norm(norm_lambda_emulate[samples_in_cell,\
+                    :] - norm_samples[i, :], ord=p, axis=1)
+                lam_rad[i] = np.max(temp_dist)
+                refine_candidate[i, :] = norm_lambda_emulate[np.argmax(\
+                        temp_dist), :]
             else:
-                lam_rad[i] = np.max(np.linalg.norm(lambda_emulate[samples_in_cell,\
-                    :] - samples[i, :], ord=p, axis=1))
+                temp_dist = np.linalg.norm(lambda_emulate[samples_in_cell,\
+                    :] - samples[i, :], ord=p, axis=1)
+                lam_rad[i] = np.max(temp_dist)
+                refine_candidate[i, :] = lambda_emulate[np.argmax(\
+                        temp_dist), :]
+            # determine the max distance and refine_candidate over all the
+            # processors
+            all_temp_dist = comm.allgather(temp_dist)
+            all_refine_candidate = comm.allgather(refine_candidate[i, :])
+            refine_candidate[i, :] = all_refine_candidate[np.argmax(all_temp_dist)]
+
     clam_rad = np.copy(lam_rad) 
     comm.Allreduce([lam_rad, MPI.DOUBLE], [clam_rad, MPI.DOUBLE], op=MPI.MAX)
     lam_rad = clam_rad
-    num_emulated = lambda_emulate.shape[0]
-    num_emulated = comm.allreduce(num_emulated, op=MPI.SUM)
 
     # Set up local arrays for parallelism
     local_index = np.array_split(np.arange(samples.shape[0]),
             comm.size)[comm.rank]
     local_index = np.array(local_index, dtype='int64')
     lam_rad_local = np.array_split(lam_rad, comm.size)[comm.rank]
+    refine_candidate_local = np.array_split(refine_candidate,
+            comm.size)[comm.rank]
 
-    return (lam_rad, lam_rad_local, local_index)
+    return (lam_rad, lam_rad_local, refine_candidate, refine_candidate_local, local_index)
 
 def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         p=2, sample_radii="estimate", max_num_l_emulate=1e4):
@@ -602,7 +645,7 @@ def estimate_local_volume(samples, input_domain=None, num_l_emulate_local=100,
         # create emulated samples
         num_l_emulate = np.max([1e4, samples.shape[0]*20])
         # estimate radii
-        sample_radii, _, _ = estimate_radii(samples,
+        sample_radii, _, _, _, _ = estimate_radii(samples,
                 lambda_emulate=emulate_iid_lebesgue(input_domain,
                     num_l_emulate) , p=p, normalize=True,
                 input_domain=input_domain)
