@@ -200,7 +200,7 @@ def plot_2D_marginal_probs(marginals, bins, lam_domain,
             ax.set_xlabel(label1) 
             ax.set_ylabel(label2)
             label_cbar = r'$\rho_{\lambda_{' + str(i+1) + '}, ' 
-            label_cbar += r'\lambda_{' + str(j+1) + '}' + '}$ (Lesbesgue)'
+            label_cbar += r'\lambda_{' + str(j+1) + '}' + '}$ (Lebesgue)'
             fig.colorbar(quadmesh, ax=ax, label=label_cbar)
             plt.axis([lam_domain[i][0], lam_domain[i][1], lam_domain[j][0],
                 lam_domain[j][1]]) 
